@@ -1,0 +1,63 @@
+---
+services:
+  mqtt-broker:
+    image: emqx/emqx:latest
+    container_name: emqx
+    ports:
+      - 1883:1883
+      - 8083:8083
+      - 8883:8883
+      - 8084:8084
+      - 18083:18083
+    volumes:
+      - './emqx/data:/opt/emqx/data'
+      - './emqx/log:/opt/emqx/log'
+    restart: unless-stopped
+
+  influxdb:
+    image: influxdb:latest
+    container_name: influxdb
+    ports:
+      - 8086:8086
+    volumes:
+      - ./influxdb/data:/var/lib/influxdb2
+      - ./influxdb/config:/etc/influxdb2
+    environment:
+      - INFLUXDB_ORG=${HA_INFLUXDB_ORG}
+      - INFLUXDB_BUCKET=${HA_INFLUXDB_BUCKET}
+      - INFLUXDB_ADMIN_USER=${HA_INFLUXDB_ADMIN_USER}
+      - INFLUXDB_ADMIN_PASSWORD=${HA_INFLUXDB_ADMIN_PASSWORD}
+      - INFLUXDB_HTTP_AUTH_ENABLED=${HA_INFLUXDB_HTTP_AUTH_ENABLED}
+      - INFLUXDB_TOKEN=${HA_INFLUXDB_TOKEN}
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - 3000:3000
+    volumes:
+      - ./grafana/data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${HA_GF_SECURITY_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${HA_GF_SECURITY_ADMIN_PASSWORD}
+    restart: unless-stopped
+    depends_on:
+      - influxdb
+
+  home-assistant:
+    image: "ghcr.io/home-assistant/home-assistant:stable"
+    container_name: home_assistant
+    network_mode: "host"
+    volumes:
+      - ./ha-config:/config
+      - /etc/localtime:/etc/localtime:ro
+      - /run/dbus:/run/dbus:ro
+      - /dev/serial/by-id:/dev/serial/by-id
+    restart: unless-stopped
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0
+    privileged: true
+    depends_on:
+      - mqtt-broker
+      - influxdb
